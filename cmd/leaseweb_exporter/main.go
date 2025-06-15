@@ -6,10 +6,6 @@ import (
 	"os"
 
 	"github.com/Nmishin/leaseweb_exporter/internal/client"
-	"github.com/Nmishin/leaseweb_exporter/internal/collector"
-
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -19,12 +15,9 @@ func main() {
 	}
 	client.Init(apiKey)
 
-	reg := prometheus.NewRegistry()
-	reg.MustRegister(collector.NewDedicatedServerCollector())
-
-	http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
+	http.HandleFunc("/metrics", metricsHandler)
+	http.HandleFunc("/health", healthHandler)
 
 	log.Println("Listening on :9112")
 	log.Fatal(http.ListenAndServe(":9112", nil))
 }
-
