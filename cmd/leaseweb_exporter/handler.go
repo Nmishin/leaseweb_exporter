@@ -15,14 +15,14 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collector, err := collector.GetCollector(target)
+	coll, err := collector.GetCollector(target)
 	if err != nil {
 		http.Error(w, "could not get collector: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	registry := prometheus.NewRegistry()
-	registry.MustRegister(collector)
+	registry.MustRegister(coll)
 
 	h := promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
 	h.ServeHTTP(w, r)
