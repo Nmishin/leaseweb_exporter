@@ -18,4 +18,3 @@ func Init(apiKey string) {
 		DedicatedserverAPI: dedicatedserver.NewAPIClient(cfg).DedicatedserverAPI,
 	}
 }
-
