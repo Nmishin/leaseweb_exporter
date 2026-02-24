@@ -1,20 +1,23 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/Nmishin/leaseweb_exporter/internal/client"
 	"github.com/Nmishin/leaseweb_exporter/internal/collector"
+	"github.com/Nmishin/leaseweb_exporter/internal/config"
 )
 
 func main() {
-	apiKey := os.Getenv("LEASEWEB_API_KEY")
-	if apiKey == "" {
-		log.Fatal("LEASEWEB_API_KEY is not set")
+	cfg := config.DefaultRootConfig()
+	cfg.FromEnvironment()
+
+	if cfg.ApiKey == "" {
+		log.Fatal("LW_EXPORTER_API_KEY environment variable is required")
 	}
-	client.Init(apiKey)
+	client.Init(cfg.ApiKey)
 
 	http.HandleFunc("/metrics", collector.MetricsHandler)
 	http.HandleFunc("/targets", collector.TargetsHandler)
@@ -23,8 +26,9 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 
-	log.Println("Leaseweb Exporter listening on :9112")
-	if err := http.ListenAndServe(":9112", nil); err != nil {
+	listenAddr := fmt.Sprintf("%s:%d", cfg.Address, cfg.Port)
+	log.Printf("Starting exporter on %s", listenAddr)
+	if err := http.ListenAndServe(listenAddr, nil); err != nil {
 		log.Fatal(err)
 	}
 }
