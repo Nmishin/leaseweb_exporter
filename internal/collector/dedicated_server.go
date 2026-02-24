@@ -53,7 +53,7 @@ func NewDedicatedServerCollector(target string) *DedicatedServerCollector {
 
 func (c *DedicatedServerCollector) GetAllServerIDs(ctx context.Context) ([]string, error) {
 	c.cacheMutex.RLock()
-	if c.discoveryCache != nil && time.Since(c.lastDiscovery) < 5*time.Minute {
+	if c.discoveryCache != nil && time.Since(c.lastDiscovery) < 1*time.Hour {
 		log.Printf("Returning cached discovery results (age: %v, count: %d)",
 			time.Since(c.lastDiscovery).Round(time.Second),
 			len(c.discoveryCache))
@@ -65,7 +65,7 @@ func (c *DedicatedServerCollector) GetAllServerIDs(ctx context.Context) ([]strin
 	c.cacheMutex.Lock()
 	defer c.cacheMutex.Unlock()
 
-	if time.Since(c.lastDiscovery) < 5*time.Minute && c.discoveryCache != nil {
+	if time.Since(c.lastDiscovery) < 1*time.Hour && c.discoveryCache != nil {
 		return c.discoveryCache, nil
 	}
 
