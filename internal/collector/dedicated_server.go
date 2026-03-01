@@ -45,7 +45,7 @@ func NewDedicatedServerCollector(target string) *DedicatedServerCollector {
 		),
 		health: prometheus.NewDesc(
 			"leaseweb_dedicated_server_health_status",
-			"Hardware health status (0=OK, 1=Warning, 2=Critical, 3=Unknown)",
+			"Hardware health status (0=OK, 1=Warning, 2=Critical)",
 			[]string{"server_id"}, nil,
 		),
 	}
@@ -120,8 +120,14 @@ func (c *DedicatedServerCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	id := deref(resp.Id)
-	site := deref(resp.Location.Site)
-	name := deref(resp.Contract.Reference.Get())
+	site := "unknown"
+	if resp.Location != nil {
+		site = deref(resp.Location.Site)
+	}
+	name := "unknown"
+	if resp.Contract != nil && resp.Contract.Reference.Get() != nil {
+		name = *resp.Contract.Reference.Get()
+	}
 
 	address := "unknown"
 	ipResp, _, err := c.client.DedicatedserverAPI.GetIpList(ctx, id).NetworkType("PUBLIC").Execute()
@@ -143,15 +149,31 @@ func (c *DedicatedServerCollector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(c.location, prometheus.GaugeValue, 1, id, site)
 
 	healthResp, _, err := c.client.DedicatedserverAPI.GetHardwareMonitoring(ctx, id).Execute()
-	if err == nil && healthResp != nil && len(healthResp.Metrics) > 0 {
-		for _, m := range healthResp.Metrics {
-			if m.Metric == "ipmi_current_state" {
-				if val, parseErr := strconv.ParseFloat(m.Value, 64); parseErr == nil {
-					ch <- prometheus.MustNewConstMetric(c.health, prometheus.GaugeValue, val, id)
-				}
-				break
+	if err != nil {
+		log.Printf("Could not get health for %s: %v", c.target, err)
+		return
+	}
+	if healthResp == nil || len(healthResp.Metrics) == 0 {
+		log.Printf("Warning: No hardware metrics returned for server %s", id)
+		return
+	}
+	found := false
+	for _, m := range healthResp.Metrics {
+		if m.Metric == "ipmi_current_state" && m.Value != "" {
+			val, parseErr := strconv.ParseFloat(m.Value, 64)
+			if parseErr != nil {
+				log.Printf("Error: Could not parse health value '%s' for server %s: %v", m.Value, id, parseErr)
+				continue
 			}
+
+			ch <- prometheus.MustNewConstMetric(c.health, prometheus.GaugeValue, val, id)
+			found = true
+			break
 		}
+	}
+
+	if !found {
+		log.Printf("Warning: Metric 'ipmi_current_state' not found in response for server %s", id)
 	}
 }
 
