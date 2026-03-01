@@ -136,4 +136,4 @@ curl "http://localhost:9112/metrics?target=12345678"
 
 ## License
 
-[MIT](LICENSE)
+[Apache 2.0 license](LICENSE)
