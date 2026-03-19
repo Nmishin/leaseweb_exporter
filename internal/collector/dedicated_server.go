@@ -18,9 +18,11 @@ type DedicatedServerCollector struct {
 	collected *sync.Cond
 	client    *client.Client
 
-	servers  *prometheus.Desc
-	location *prometheus.Desc
-	health   *prometheus.Desc
+	servers       *prometheus.Desc
+	location      *prometheus.Desc
+	coolingHealth *prometheus.Desc
+	driveHealth   *prometheus.Desc
+	powerHealth   *prometheus.Desc
 
 	discoveryCache []string
 	lastDiscovery  time.Time
@@ -43,9 +45,19 @@ func NewDedicatedServerCollector(target string) *DedicatedServerCollector {
 			"Server location info",
 			[]string{"server_id", "site"}, nil,
 		),
-		health: prometheus.NewDesc(
-			"leaseweb_dedicated_server_health_status",
-			"Hardware health status (0=OK, 1=Warning, 2=Critical)",
+		coolingHealth: prometheus.NewDesc(
+			"leaseweb_dedicated_server_cooling_health",
+			"Cooling system health (1=OK, 0/other=Fault)",
+			[]string{"server_id"}, nil,
+		),
+		driveHealth: prometheus.NewDesc(
+			"leaseweb_dedicated_server_drive_health",
+			"Storage drive health (1=OK, 0/other=Fault)",
+			[]string{"server_id"}, nil,
+		),
+		powerHealth: prometheus.NewDesc(
+			"leaseweb_dedicated_server_power_status",
+			"Chassis power state (1=On, 0=Off)",
 			[]string{"server_id"}, nil,
 		),
 	}
@@ -108,7 +120,9 @@ func (c *DedicatedServerCollector) GetAllServerIDs(ctx context.Context) ([]strin
 func (c *DedicatedServerCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.servers
 	ch <- c.location
-	ch <- c.health
+	ch <- c.coolingHealth
+	ch <- c.driveHealth
+	ch <- c.powerHealth
 }
 
 func (c *DedicatedServerCollector) Collect(ch chan<- prometheus.Metric) {
@@ -157,23 +171,25 @@ func (c *DedicatedServerCollector) Collect(ch chan<- prometheus.Metric) {
 		log.Printf("Warning: No hardware metrics returned for server %s", id)
 		return
 	}
-	found := false
+
 	for _, m := range healthResp.Metrics {
-		if m.Metric == "ipmi_current_state" && m.Value != "" {
-			val, parseErr := strconv.ParseFloat(m.Value, 64)
-			if parseErr != nil {
-				log.Printf("Error: Could not parse health value '%s' for server %s: %v", m.Value, id, parseErr)
-				continue
-			}
-
-			ch <- prometheus.MustNewConstMetric(c.health, prometheus.GaugeValue, val, id)
-			found = true
-			break
+		if m.Value == "" {
+			continue
 		}
-	}
 
-	if !found {
-		log.Printf("Warning: Metric 'ipmi_current_state' not found in response for server %s", id)
+		val, err := strconv.ParseFloat(m.Value, 64)
+		if err != nil {
+			continue
+		}
+
+		switch m.Metric {
+		case "ipmi_chassis_cooling_fault_state":
+			ch <- prometheus.MustNewConstMetric(c.coolingHealth, prometheus.GaugeValue, val, id)
+		case "ipmi_chassis_drive_fault_state":
+			ch <- prometheus.MustNewConstMetric(c.driveHealth, prometheus.GaugeValue, val, id)
+		case "ipmi_chassis_power_state":
+			ch <- prometheus.MustNewConstMetric(c.powerHealth, prometheus.GaugeValue, val, id)
+		}
 	}
 }
 

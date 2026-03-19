@@ -15,19 +15,37 @@ A [Prometheus](https://prometheus.io/) exporter for [Leaseweb](https://www.lease
 
 ## Metrics
 
+The exporter provides detailed hardware telemetry and metadata for Leaseweb dedicated servers. It separates static metadata from dynamic health states to allow for efficient alerting and grouping.
+
+### Server Information & Metadata
 | Metric | Type | Labels | Description |
 |---|---|---|---|
-| `leaseweb_dedicated_server_info` | Gauge | `server_id`, `name`, `address` | Metadata about a dedicated server. Always `1`. |
-| `leaseweb_dedicated_server_location` | Gauge | `server_id`, `site` | Physical location of the server. Always `1`. |
-| `leaseweb_dedicated_server_health_status` | Gauge | `server_id` | Hardware health status from IPMI monitoring. |
+| `leaseweb_dedicated_server_info` | Gauge | `server_id`, `name`, `address` | Metadata about the server. Value is always `1`. |
+| `leaseweb_dedicated_server_location` | Gauge | `server_id`, `site` | Physical location (Data Center) of the server. Value is always `1`. |
 
-### Health Status Values
+### Hardware Health Metrics
+These metrics reflect the real-time status of the server's hardware components via IPMI.
 
-| Value | Meaning |
-|---|---|
-| `0` | OK |
-| `1` | Warning |
-| `2` | Critical |
+| Metric | Type | Labels | Description |
+|---|---|---|---|
+| `leaseweb_dedicated_server_cooling_health` | Gauge | `server_id` | Health of the cooling system (fans, intake, exhaust). |
+| `leaseweb_dedicated_server_drive_health` | Gauge | `server_id` | Health of the storage drives and backplane. |
+| `leaseweb_dedicated_server_power_status` | Gauge | `server_id` | Current chassis power state. |
+
+---
+
+## Health Status Reference
+
+To simplify monitoring, the exporter uses a consistent **"1 = OK"** logic for all hardware sensors.
+
+| Metric | Value | Meaning |
+|---|---|---|
+| **Cooling / Drive Health** | `1` | **Healthy** (Normal operation) |
+| | `0` (or other) | **Fault** (Hardware error detected) |
+| **Power Status** | `1` | **ON** (Server is running) |
+| | `0` | **OFF** (Server is powered down) |
+
+---
 
 ## HTTP Endpoints
 
