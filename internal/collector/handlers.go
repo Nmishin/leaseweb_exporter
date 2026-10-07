@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Nmishin/leaseweb_exporter/internal/client"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -60,4 +62,12 @@ func TargetsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(tgs)
+}
+
+func FloatingIPMetricsHandler(w http.ResponseWriter, r *http.Request) {
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(NewFloatingIPCollector(client.LeasewebClient.FloatingIP))
+
+	h := promhttp.HandlerFor(registry, promhttp.HandlerOpts{Timeout: 30 * time.Second})
+	h.ServeHTTP(w, r)
 }
