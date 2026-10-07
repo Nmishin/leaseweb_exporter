@@ -11,7 +11,7 @@ A [Prometheus](https://prometheus.io/) exporter for [Leaseweb](https://www.lease
 - Supports **multi-target scraping** — one exporter instance handles all your servers
 - Built-in **HTTP Service Discovery** endpoint compatible with Prometheus `http_sd_configs`
 - Discovery results are **cached for 1 hour** to minimize API calls
-- Ships as a minimal, multi-arch Docker image (`linux/amd64`, `linux/arm64`)
+- Ships as a minimal, multi-arch container image built with [ko](https://ko.build/) on a distroless base (`linux/amd64`, `linux/arm64`)
 
 ## Metrics
 
@@ -107,7 +107,7 @@ services:
 
 ### Build from Source
 
-Requires Go 1.21+.
+Requires Go 1.26+.
 
 ```sh
 git clone https://github.com/Nmishin/leaseweb_exporter.git
@@ -115,6 +115,14 @@ cd leaseweb_exporter
 go build -o leaseweb-exporter ./cmd/leaseweb_exporter
 
 LW_EXPORTER_API_KEY=your_api_key_here ./leaseweb-exporter
+```
+
+### Build the Image Locally
+
+Requires [ko](https://ko.build/install/).
+
+```sh
+KO_DOCKER_REPO=ko.local ko build --bare ./cmd/leaseweb_exporter
 ```
 
 ## Prometheus Configuration
