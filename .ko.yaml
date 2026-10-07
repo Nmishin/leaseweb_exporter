@@ -1,0 +1,8 @@
+defaultBaseImage: cgr.dev/chainguard/static
+builds:
+  - id: leaseweb-exporter
+    main: ./cmd/leaseweb_exporter
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
