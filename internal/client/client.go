@@ -6,6 +6,7 @@ import (
 
 type Client struct {
 	DedicatedserverAPI dedicatedserver.DedicatedserverAPI
+	FloatingIP         *FloatingIPClient
 }
 
 var LeasewebClient Client
@@ -16,5 +17,6 @@ func Init(apiKey string) {
 
 	LeasewebClient = Client{
 		DedicatedserverAPI: dedicatedserver.NewAPIClient(cfg).DedicatedserverAPI,
+		FloatingIP:         NewFloatingIPClient(apiKey),
 	}
 }

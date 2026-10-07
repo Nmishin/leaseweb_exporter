@@ -32,6 +32,19 @@ These metrics reflect the real-time status of the server's hardware components v
 | `leaseweb_dedicated_server_drive_health` | Gauge | `server_id` | Health of the storage drives and backplane. |
 | `leaseweb_dedicated_server_power_status` | Gauge | `server_id` | Current chassis power state. |
 
+### Floating IP Metrics
+Exposed on a separate endpoint, `/metrics/floating-ips`. Floating IPs belong to the account, not to one server, so they are scraped as a single target.
+
+| Metric | Type | Labels | Description |
+|---|---|---|---|
+| `leaseweb_floating_ip_up` | Gauge | — | `1` if all Floating IPs API queries succeeded, `0` otherwise. |
+| `leaseweb_floating_ip_info` | Gauge | `range_id`, `floating_ip`, `location`, `type`, `anchor_ip`, `passive_anchor_ip`, `status` | Floating IP definition and its current anchors. Value is always `1`. |
+| `leaseweb_floating_ip_active` | Gauge | `range_id`, `floating_ip` | `1` if status is `ACTIVE`. |
+| `leaseweb_floating_ip_updated_timestamp_seconds` | Gauge | `range_id`, `floating_ip` | Last change of the definition (e.g. anchor toggled). |
+| `leaseweb_floating_ip_range_anchor_ips` | Gauge | `range_id` | Distinct anchor IPs currently in use in the range. |
+| `leaseweb_floating_ip_range_expected_anchor_ips` | Gauge | `range_id` | `min(floating IPs, distinct anchor + passive IPs)` in the range. |
+| `leaseweb_floating_ip_range_anchors_spread` | Gauge | `range_id` | `1` if floating IPs are spread across all anchor servers, `0` if they collapsed onto fewer servers (failover happened). |
+
 ---
 
 ## Health Status Reference
@@ -52,6 +65,7 @@ To simplify monitoring, the exporter uses a consistent **"1 = OK"** logic for al
 | Endpoint | Description |
 |---|---|
 | `/metrics?target=<server_id>` | Prometheus metrics for a specific server |
+| `/metrics/floating-ips` | Prometheus metrics for all Floating IP ranges of the account |
 | `/targets` | HTTP Service Discovery — returns all servers as a target group |
 | `/health` | Health check — returns `200 OK` |
 
@@ -144,6 +158,34 @@ scrape_configs:
         target_label: instance
       - target_label: __address__
         replacement: leaseweb-exporter:9112
+```
+
+### Floating IPs
+
+```yaml
+scrape_configs:
+  - job_name: leaseweb_floating_ips
+    metrics_path: /metrics/floating-ips
+    static_configs:
+      - targets: ["leaseweb-exporter:9112"]
+```
+
+Example alerts:
+
+```yaml
+groups:
+  - name: leaseweb-floating-ips
+    rules:
+      # Several floating IPs now point to the same server: the other one failed.
+      - alert: LeasewebFloatingIPAnchorsCollapsed
+        expr: leaseweb_floating_ip_range_anchors_spread == 0
+        for: 5m
+      # Anchor IP of a floating IP changed within the last 15 minutes.
+      - alert: LeasewebFloatingIPAnchorChanged
+        expr: count by (floating_ip) (max_over_time(leaseweb_floating_ip_info[15m])) > 1
+      - alert: LeasewebFloatingIPExporterDown
+        expr: leaseweb_floating_ip_up == 0
+        for: 10m
 ```
 
 ### Verify a Single Scrape

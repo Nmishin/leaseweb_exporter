@@ -20,6 +20,7 @@ func main() {
 	client.Init(cfg.ApiKey)
 
 	http.HandleFunc("/metrics", collector.MetricsHandler)
+	http.HandleFunc("/metrics/floating-ips", collector.FloatingIPMetricsHandler)
 	http.HandleFunc("/targets", collector.TargetsHandler)
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
