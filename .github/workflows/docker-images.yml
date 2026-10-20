@@ -6,16 +6,21 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   push-to-registry:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
         with:
-          fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # ratchet:actions/setup-go@v7
@@ -27,8 +32,17 @@ jobs:
         uses: ko-build/setup-ko@61b4d1d396f5b2e7d6bb6fefdce3dc38d1a13445 # ratchet:ko-build/setup-ko@v0.10
 
       - name: Build and push
+        id: build
         run: |
-          ko build ./cmd/leaseweb_exporter \
+          ref=$(ko build ./cmd/leaseweb_exporter \
             --bare \
             --platform=linux/amd64,linux/arm64 \
-            --tags="${GITHUB_REF_NAME#v},latest"
+            --tags="${GITHUB_REF_NAME#v},latest")
+          echo "digest=${ref##*@}" >> "$GITHUB_OUTPUT"
+
+      - name: Attest provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # ratchet:actions/attest@v4.2.2
+        with:
+          subject-name: ${{ env.KO_DOCKER_REPO }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true

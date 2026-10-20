@@ -1,6 +1,6 @@
 module github.com/Nmishin/leaseweb_exporter
 
-go 1.26.0
+go 1.26.10
 
 require (
 	github.com/leaseweb/leaseweb-go-sdk/dedicatedserver/v2 v2.0.8
