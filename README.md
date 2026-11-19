@@ -42,8 +42,8 @@ Exposed on a separate endpoint, `/metrics/floating-ips`. Floating IPs belong to 
 | `leaseweb_floating_ip_active` | Gauge | `range_id`, `floating_ip` | `1` if status is `ACTIVE`. |
 | `leaseweb_floating_ip_updated_timestamp_seconds` | Gauge | `range_id`, `floating_ip` | Last change of the definition (e.g. anchor toggled). |
 | `leaseweb_floating_ip_range_anchor_ips` | Gauge | `range_id` | Distinct anchor IPs currently in use in the range. |
-| `leaseweb_floating_ip_range_expected_anchor_ips` | Gauge | `range_id` | `min(floating IPs, distinct anchor + passive IPs)` in the range. |
-| `leaseweb_floating_ip_range_anchors_spread` | Gauge | `range_id` | `1` if floating IPs are spread across all anchor servers, `0` if they collapsed onto fewer servers (failover happened). |
+
+The exporter does not report how many anchor servers a range *should* use: passive anchors are not reliable for that, since after a failover they may follow the active anchor. Compare `leaseweb_floating_ip_range_anchor_ips` with the number of floating IPs in the range instead (see the example alerts below).
 
 ---
 
@@ -184,10 +184,12 @@ Example alerts:
 groups:
   - name: leaseweb-floating-ips
     rules:
-      # Several floating IPs now point to the same server: the other one failed.
+      # All floating IPs of a range point to the same server: the other one failed.
       - alert: LeasewebFloatingIPAnchorsCollapsed
-        expr: leaseweb_floating_ip_range_anchors_spread == 0
-        for: 5m
+        expr: |
+          leaseweb_floating_ip_range_anchor_ips == 1
+          and on (range_id) count by (range_id) (leaseweb_floating_ip_info) > 1
+        for: 10m
       # Anchor IP of a floating IP changed within the last 15 minutes.
       - alert: LeasewebFloatingIPAnchorChanged
         expr: count by (floating_ip) (max_over_time(leaseweb_floating_ip_info[15m])) > 1
