@@ -17,13 +17,11 @@ type floatingIPLister interface {
 type FloatingIPCollector struct {
 	api floatingIPLister
 
-	up                *prometheus.Desc
-	info              *prometheus.Desc
-	active            *prometheus.Desc
-	updated           *prometheus.Desc
-	anchorIPs         *prometheus.Desc
-	expectedAnchorIPs *prometheus.Desc
-	anchorsSpread     *prometheus.Desc
+	up        *prometheus.Desc
+	info      *prometheus.Desc
+	active    *prometheus.Desc
+	updated   *prometheus.Desc
+	anchorIPs *prometheus.Desc
 }
 
 func NewFloatingIPCollector(api floatingIPLister) *FloatingIPCollector {
@@ -55,16 +53,6 @@ func NewFloatingIPCollector(api floatingIPLister) *FloatingIPCollector {
 			"Number of distinct anchor IPs currently used by floating IPs in the range",
 			[]string{"range_id"}, nil,
 		),
-		expectedAnchorIPs: prometheus.NewDesc(
-			"leaseweb_floating_ip_range_expected_anchor_ips",
-			"Number of distinct anchor IPs expected in the range: min(floating IPs, distinct anchor+passive IPs)",
-			[]string{"range_id"}, nil,
-		),
-		anchorsSpread: prometheus.NewDesc(
-			"leaseweb_floating_ip_range_anchors_spread",
-			"Whether floating IPs in the range are spread across all anchor servers (1=OK, 0=collapsed onto fewer servers)",
-			[]string{"range_id"}, nil,
-		),
 	}
 }
 
@@ -74,8 +62,6 @@ func (c *FloatingIPCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.active
 	ch <- c.updated
 	ch <- c.anchorIPs
-	ch <- c.expectedAnchorIPs
-	ch <- c.anchorsSpread
 }
 
 func (c *FloatingIPCollector) Collect(ch chan<- prometheus.Metric) {
@@ -105,7 +91,6 @@ func (c *FloatingIPCollector) Collect(ch chan<- prometheus.Metric) {
 
 func (c *FloatingIPCollector) collectRange(ch chan<- prometheus.Metric, rangeID string, defs []client.FloatingIPDefinition) {
 	anchors := map[string]struct{}{}
-	pool := map[string]struct{}{}
 
 	for _, d := range defs {
 		ch <- prometheus.MustNewConstMetric(c.info, prometheus.GaugeValue, 1,
@@ -123,10 +108,6 @@ func (c *FloatingIPCollector) collectRange(ch chan<- prometheus.Metric, rangeID 
 
 		if d.AnchorIP != "" {
 			anchors[d.AnchorIP] = struct{}{}
-			pool[d.AnchorIP] = struct{}{}
-		}
-		if d.PassiveAnchorIP != "" {
-			pool[d.PassiveAnchorIP] = struct{}{}
 		}
 	}
 
@@ -134,18 +115,11 @@ func (c *FloatingIPCollector) collectRange(ch chan<- prometheus.Metric, rangeID 
 		return
 	}
 
-	// With N floating IPs over M servers, a healthy range uses min(N, M)
-	// distinct anchors. Fewer means some server lost all its floating IPs,
-	// i.e. a failover moved them onto another server.
-	expected := min(len(defs), len(pool))
-	spread := 0.0
-	if len(anchors) >= expected {
-		spread = 1
-	}
-
+	// The number of anchor servers a range should use is not derivable from
+	// the API: passive anchors are not kept on the other server and may follow
+	// the active one after a failover. Alert on this metric together with the
+	// number of floating IPs in the range instead.
 	ch <- prometheus.MustNewConstMetric(c.anchorIPs, prometheus.GaugeValue, float64(len(anchors)), rangeID)
-	ch <- prometheus.MustNewConstMetric(c.expectedAnchorIPs, prometheus.GaugeValue, float64(expected), rangeID)
-	ch <- prometheus.MustNewConstMetric(c.anchorsSpread, prometheus.GaugeValue, spread, rangeID)
 }
 
 // The API returns both "+00:00" and "+0000" offsets.
